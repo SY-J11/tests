@@ -1,6 +1,6 @@
 const API='https://m.stock.naver.com';
 const DESKTOP='https://stock.naver.com';
-const PROXY_BASE='https://tests.mcraft-tiger-574.workers.dev';
+const PROXY_BASE='https://stock-insight-proxy.mcraft-tiger-574.workers.dev';
 const seed=[{name:'삼성전자',code:'005930'},{name:'삼성전자우',code:'005935'},{name:'SK하이닉스',code:'000660'},{name:'한미반도체',code:'042700'},{name:'두산에너빌리티',code:'034020'},{name:'두산',code:'000150'},{name:'현대차',code:'005380'},{name:'기아',code:'000270'},{name:'LG에너지솔루션',code:'373220'},{name:'삼성SDI',code:'006400'},{name:'NAVER',code:'035420'},{name:'카카오',code:'035720'},{name:'제주반도체',code:'080220'},{name:'대원전선',code:'006340'},{name:'대덕전자',code:'353200'}];
 const $=id=>document.getElementById(id), blank='—';
 const FLOW_DATE_KEYS=['tradeDate','date','localDate','localTradedAt','bizdate','tradingDate','bizDate','trdDt','dt','basDt','yyyymmdd','tradeDateYmd','dateString','tradedAt','dealDate','stckBsopDate','ymd','businessDate','tradingDay','stck_bsop_date','bsopDate'];
@@ -417,7 +417,7 @@ function renderDailyChart(raw,period=dailyChartPeriod){
  const byDate=new Map();for(const x of list)byDate.set(x.date,x);
  const data=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-200);
  if(!data.length){host.innerHTML=`<div class="chart-empty">${({day:'일봉',week:'주봉',month:'월봉',year:'년봉'}[period]||'차트')} 데이터를 불러오지 못했습니다.</div>`;return;}
- const W=700,H=310,left=8,right=54,top=8,priceBottom=135,volumeTop=151,volumeBottom=188,foreignTop=207,foreignBottom=275,plotW=W-left-right,plotH=priceBottom-top;
+ const W=700,H=330,left=8,right=54,top=8,priceBottom=135,volumeTop=151,volumeBottom=188,foreignTop=207,foreignBottom=275,plotW=W-left-right,plotH=priceBottom-top;
  let min=Math.min(...data.map(x=>x.low)),max=Math.max(...data.map(x=>x.high));if(min===max){min*=.99;max*=1.01}const pad=(max-min)*.06;min-=pad;max+=pad;
  const y=v=>top+(max-v)/(max-min)*plotH,step=plotW/data.length,cw=Math.max(2,Math.min(7,step*.58));
  const grid=[0,.25,.5,.75,1].map(t=>{const val=max-(max-min)*t,yy=top+plotH*t;return `<line class="daily-grid-line" x1="${left}" y1="${yy}" x2="${W-right}" y2="${yy}"/><text class="daily-axis-text" x="${W-right+5}" y="${yy+3}" text-anchor="start">${Math.round(val).toLocaleString('ko-KR')}</text>`}).join('');
@@ -436,8 +436,11 @@ function renderDailyChart(raw,period=dailyChartPeriod){
   const foreignLine=foreignPoints.length>1?`<polyline points="${foreignPoints.map(p=>p.join(',')).join(' ')}" fill="none" stroke="#e0a33a" stroke-width="2"/>`:'';
 
  const volumes=data.map((d,i)=>{const x=left+(i+.5)*step,h=Math.max(d.volume>0?1:0,(d.volume||0)/maxVolume*(volumeBottom-volumeTop)),color=d.close>=d.open?'#df5967':'#3979d8';return h?`<rect x="${x-cw/2}" y="${volumeBottom-h}" width="${cw}" height="${h}" fill="${color}" opacity=".78"/>`:''}).join('');
- const labels=[0,Math.floor((data.length-1)/2),data.length-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>{const d=data[i],x=left+(i+.5)*step;return `<text class="daily-axis-text" x="${x}" y="225" text-anchor="middle">${d.date.slice(4,6)}.${d.date.slice(6,8)}</text>`}).join('');
- host.innerHTML=`<div class="daily-ma-legend">${maPeriods.map(p=>`<span style="color:${maColors[p]}"><i style="display:inline-block;width:13px;border-top:1px solid ${maColors[p]};vertical-align:middle;margin-right:3px"></i>${p}${period==='day'?'일':period==='week'?'주':period==='month'?'월':'년'}</span>`).join('')}<span class="daily-volume-legend">거래량</span><span style="color:#e0a33a">외국인 보유율 ━</span></div><svg class="daily-candle-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${({day:'일봉',week:'주봉',month:'월봉',year:'년봉'}[period]||'주가')} 캔들, 이동평균선 및 거래량 차트">${grid}<line class="daily-grid-line" x1="${left}" y1="${volumeTop}" x2="${W-right}" y2="${volumeTop}"/>${candles}${movingAverages}${volumes}<line class="daily-grid-line" x1="${left}" y1="${foreignTop-7}" x2="${W-right}" y2="${foreignTop-7}"/>${foreignGrid}${foreignLine}${labels}</svg>`;
+ // 매월 첫 거래일 위치에 연한 세로 구분선을 표시하고 날짜 표시는 차트 최하단으로 내린다.
+ const monthStarts=[];let lastMonth='';for(let i=0;i<data.length;i++){const month=data[i].date.slice(0,6);if(month!==lastMonth){monthStarts.push({i,month});lastMonth=month}}
+ const monthLines=monthStarts.map(({i})=>{const x=left+(i+.5)*step;return `<line x1="${x}" y1="${top}" x2="${x}" y2="${foreignBottom}" stroke="#929baa" stroke-width="1.2" stroke-dasharray="2 4" opacity=".32"/>`}).join('');
+ const monthLabels=monthStarts.filter((m,i)=>{if(i===0||i===monthStarts.length-1)return true;return (monthStarts[i].i-monthStarts[i-1].i)*step>=42}).map(({i,month})=>{const x=left+(i+.5)*step;return `<text class="daily-axis-text" x="${x}" y="321" text-anchor="middle">${month.slice(4,6)}.01</text>`}).join('');
+ host.innerHTML=`<div class="daily-ma-legend">${maPeriods.map(p=>`<span style="color:${maColors[p]}"><i style="display:inline-block;width:13px;border-top:1px solid ${maColors[p]};vertical-align:middle;margin-right:3px"></i>${p}${period==='day'?'일':period==='week'?'주':period==='month'?'월':'년'}</span>`).join('')}<span class="daily-volume-legend">거래량</span><span style="color:#e0a33a">외국인 보유율 ━</span></div><svg class="daily-candle-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${({day:'일봉',week:'주봉',month:'월봉',year:'년봉'}[period]||'주가')} 캔들, 이동평균선 및 거래량 차트">${grid}${monthLines}<line class="daily-grid-line" x1="${left}" y1="${volumeTop}" x2="${W-right}" y2="${volumeTop}"/>${candles}${movingAverages}${volumes}<line class="daily-grid-line" x1="${left}" y1="${foreignTop-7}" x2="${W-right}" y2="${foreignTop-7}"/>${foreignGrid}${foreignLine}${monthLabels}</svg>`;
  const range=$('dailyChartRange');if(range)range.textContent=`${data[0].date.slice(0,4)}.${data[0].date.slice(4,6)}.${data[0].date.slice(6,8)} – ${data[data.length-1].date.slice(0,4)}.${data[data.length-1].date.slice(4,6)}.${data[data.length-1].date.slice(6,8)}`;
 }
 function streakDisplayHtml(value,highlight){const text=String(value??'—');return highlight&&/^\d/.test(text)?`<strong>${text[0]}</strong>${text.slice(1)}`:text}
@@ -492,13 +495,71 @@ async function loadChartPeriod(period){
   }
   const candles=period==='day'?normalizeCandleRows(raw).slice(-120):aggregateCandles(normalizeCandleRows(raw),period);
    try{
-    const foreignRaw=await first([`https://api.stock.naver.com/chart/domestic/item/${code}?periodType=${period==='day'?'dayCandle':period==='week'?'weekCandle':period==='month'?'monthCandle':'monthCandle'}`]);
-    // chart API의 실제 데이터는 최상위 priceInfos 배열 안에 들어 있다.
-    const foreignList=Array.isArray(foreignRaw?.priceInfos)?foreignRaw.priceInfos:objects(foreignRaw);
-    const dateKeys=['localDate','localTradedAt','tradeDate','date','bizdate','trdDt','yyyymmdd','basDt'];
-    const rateKeys=['foreignRetentionRate','foreignerHoldRatio','foreignRate','foreignOwnershipRate','foreignRatio','foreignHoldRatio','foreignerRetentionRate','frgnrHoldRatio','frgnHoldRatio'];
-    const rateMap=new Map();
-    for(const row of foreignList){const date=String(dateKeys.map(k=>row[k]).find(v=>v!==undefined&&v!==null)||'').replace(/\D/g,'').slice(0,8);let rate=null;for(const key of rateKeys){rate=num(row[key]);if(rate!==null)break}if(!rateKeys.some(k=>row[k]!==undefined)&&rate===null){for(const [key,value] of Object.entries(row)){if(/foreign.*(rate|ratio|hold)|frgn.*(rate|ratio|hold)/i.test(key)){rate=num(value);if(rate!==null)break}}}if(date&&rate!==null)rateMap.set(date,rate)}
+    // 기본 차트 API 응답은 최근 약 110거래일만 반환될 수 있으므로, 표시 중인 가격 차트의 전체 날짜 범위를 명시한다.
+    // 전체 범위 요청 후에도 시작 구간이 비어 있으면 과거 구간을 나눠 보충한다.
+    const chartUrl=(from,to)=>`https://api.stock.naver.com/chart/domestic/item/${code}?periodType=dayCandle&startDateTime=${from}&endDateTime=${to}`;
+    const parseForeignRows=raw=>{
+     const list=Array.isArray(raw?.priceInfos)?raw.priceInfos:objects(raw);
+     const dateKeys=['localDate','localTradedAt','tradeDate','date','bizdate','trdDt','yyyymmdd','basDt'];
+     const rateKeys=['foreignRetentionRate','foreignerHoldRatio','foreignRate','foreignOwnershipRate','foreignRatio','foreignHoldRatio','foreignerRetentionRate','frgnrHoldRatio','frgnHoldRatio'];
+     const map=new Map();
+     for(const row of list){
+      const date=String(dateKeys.map(k=>row?.[k]).find(v=>v!==undefined&&v!==null)||'').replace(/\D/g,'').slice(0,8);
+      let rate=null;for(const key of rateKeys){rate=num(row?.[key]);if(rate!==null)break}
+      if(rate===null){for(const [key,value] of Object.entries(row||{})){if(/foreign.*(rate|ratio|hold)|frgn.*(rate|ratio|hold)/i.test(key)){rate=num(value);if(rate!==null)break}}}
+      if(date&&rate!==null)map.set(date,rate);
+     }
+     return map;
+    };
+    const startDate=candles[0].date,endDate=candles[candles.length-1].date;
+    let rateMap=parseForeignRows(await first([chartUrl(startDate,endDate)]));
+    const earliest=rateMap.size?Math.min(...[...rateMap.keys()].map(Number)):0;
+    if(!rateMap.size||earliest>Number(startDate)){
+     const toDate=d=>`${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}${String(d.getUTCDate()).padStart(2,'0')}`;
+     const start=new Date(Date.UTC(+startDate.slice(0,4),+startDate.slice(4,6)-1,+startDate.slice(6,8)));
+     const endMissing=rateMap.size?new Date(Date.UTC(Math.floor(earliest/10000),Math.floor((earliest%10000)/100)-1,earliest%100)):new Date(Date.UTC(+endDate.slice(0,4),+endDate.slice(4,6)-1,+endDate.slice(6,8)));
+     const chunks=[];let cursor=new Date(start);
+     while(cursor<endMissing){const chunkEnd=new Date(cursor);chunkEnd.setUTCDate(chunkEnd.getUTCDate()+119);if(chunkEnd>=endMissing)chunkEnd.setTime(endMissing.getTime()-86400000);if(chunkEnd<cursor)break;chunks.push([toDate(cursor),toDate(chunkEnd)]);cursor=new Date(chunkEnd);cursor.setUTCDate(cursor.getUTCDate()+1)}
+     for(let i=0;i<chunks.length;i+=5){const batch=await Promise.all(chunks.slice(i,i+5).map(([from,to])=>first([chartUrl(from,to)]).then(parseForeignRows).catch(()=>new Map())));for(const part of batch)for(const [date,rate] of part)rateMap.set(date,rate)}
+    }
+    // 차트 API가 최근 구간만 외국인 보유율을 반환하는 경우를 대비해
+    // 네이버 금융의 종목별 외국인/기관 페이지에서 과거 120거래일을 보충한다.
+    if(rateMap.size<candles.length){
+     const parseNaverForeignPage=async page=>{
+      const url=`https://finance.naver.com/item/frgn.naver?code=${code}&page=${page}`;
+      const html=await getText(url);
+      const doc=new DOMParser().parseFromString(html,'text/html');
+      const out=new Map();
+      for(const table of doc.querySelectorAll('table')){
+       const rows=[...table.querySelectorAll('tr')];
+       let dateCol=-1,rateCol=-1;
+       for(const row of rows){
+        const heads=[...row.querySelectorAll('th')].map(x=>(x.textContent||'').replace(/\\s+/g,'').trim());
+        if(heads.length){
+         dateCol=heads.findIndex(x=>x.includes('날짜'));
+         rateCol=heads.findIndex(x=>x.includes('외국인')&&(x.includes('비율')||x.includes('보유율')));
+         if(rateCol>=0)break;
+        }
+       }
+       if(rateCol<0)continue;
+       for(const row of rows){
+        const cells=[...row.querySelectorAll('td')].map(x=>(x.textContent||'').replace(/\\s+/g,' ').trim());
+        if(!cells.length)continue;
+        const dateText=cells[dateCol>=0?dateCol:0]||'';
+        const date=dateText.replace(/\\D/g,'').slice(0,8);
+        const rate=num(cells[rateCol]);
+        if(/^\\d{8}$/.test(date)&&rate!==null)out.set(date,rate);
+       }
+       if(out.size)break;
+      }
+      return out;
+     };
+     for(let page=1;page<=12;page+=4){
+      const batch=await Promise.all(Array.from({length:Math.min(4,13-page)},(_,i)=>parseNaverForeignPage(page+i).catch(()=>new Map())));
+      for(const part of batch)for(const [date,rate] of part)if(!rateMap.has(date))rateMap.set(date,rate);
+      if([...rateMap.keys()].some(d=>d<=startDate))break;
+     }
+    }
     for(const c of candles){const rate=rateMap.get(c.date);if(rate!==undefined)c.foreignRate=rate}
    }catch(e){console.warn('외국인 보유 데이터 조회 실패',e)}
 
