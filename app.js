@@ -1,6 +1,6 @@
 const API='https://m.stock.naver.com';
 const DESKTOP='https://stock.naver.com';
-const PROXY_BASE='https://test.mcraft-tiger-574.workers.dev';
+const PROXY_BASE='https://stock-insight-proxy.mcraft-tiger-574.workers.dev';
 const seed=[{name:'삼성전자',code:'005930'},{name:'삼성전자우',code:'005935'},{name:'SK하이닉스',code:'000660'},{name:'한미반도체',code:'042700'},{name:'두산에너빌리티',code:'034020'},{name:'두산',code:'000150'},{name:'현대차',code:'005380'},{name:'기아',code:'000270'},{name:'LG에너지솔루션',code:'373220'},{name:'삼성SDI',code:'006400'},{name:'NAVER',code:'035420'},{name:'카카오',code:'035720'},{name:'제주반도체',code:'080220'},{name:'대원전선',code:'006340'},{name:'대덕전자',code:'353200'}];
 const $=id=>document.getElementById(id), blank='—';
 const FLOW_DATE_KEYS=['tradeDate','date','localDate','localTradedAt','bizdate','tradingDate','bizDate','trdDt','dt','basDt','yyyymmdd','tradeDateYmd','dateString','tradedAt','dealDate','stckBsopDate','ymd','businessDate','tradingDay','stck_bsop_date','bsopDate'];
@@ -412,7 +412,7 @@ function renderDailyChart(raw,period=dailyChartPeriod){
   const high=num(x.highPrice??x.high??x.stckHgpr??x.highestPrice)??Math.max(open,close);
   const low=num(x.lowPrice??x.low??x.stckLwpr??x.lowestPrice)??Math.min(open,close);
   const volume=num(x.accumulatedTradingVolume??x.tradingVolume??x.tradeVolume??x.volume??x.acmlVol??x.vol??x.accTradeVolume??x.accumulatedVolume)??0;
-  const foreignRate=num(x.foreignRetentionRate??x.foreignerHoldRatio??x.foreignRate??x.foreignOwnershipRate); return {date,open,high,low,close,volume,foreignRate};
+  const foreignRate=num(x.foreignRetentionRate??x.foreignerHoldRatio??x.foreignRate??x.foreignOwnershipRate??x.foreignRatio??x.foreignHoldRatio??x.foreignerRetentionRate??x.frgnrHoldRatio??x.frgnHoldRatio); const foreignShares=num(x.foreignShares??x.foreignerHoldings??x.foreignHoldingShares??x.foreignerHoldingShares??x.foreignRetentionShares); return {date,open,high,low,close,volume,foreignRate,foreignShares};
  }).filter(x=>x.date&&x.close!==null&&x.open!==null&&x.high!==null&&x.low!==null);
  const byDate=new Map();for(const x of list)byDate.set(x.date,x);
  const data=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-200);
@@ -427,7 +427,7 @@ function renderDailyChart(raw,period=dailyChartPeriod){
  const candles=data.map((d,i)=>{const x=left+(i+.5)*step,up=d.close>=d.open,color=up?'#df5967':'#3979d8',bodyY=Math.min(y(d.open),y(d.close)),bodyH=Math.max(1,Math.abs(y(d.open)-y(d.close)));return `<line x1="${x}" y1="${y(d.high)}" x2="${x}" y2="${y(d.low)}" stroke="${color}" stroke-width="1"/><rect x="${x-cw/2}" y="${bodyY}" width="${cw}" height="${bodyH}" fill="${color}"/>`}).join('');
  const maxVolume=Math.max(1,...data.map(d=>d.volume||0));
   const foreignRows=data.filter(d=>d.foreignRate!==null&&d.foreignRate!==undefined);
-  const maxForeignShares=Math.max(1,...foreignRows.map(d=>d.foreignShares||0));
+  const maxForeignShares=Math.max(1,...data.map(d=>d.foreignShares||0));
   const minRate=foreignRows.length?Math.min(...foreignRows.map(d=>d.foreignRate)):0,maxRate=foreignRows.length?Math.max(...foreignRows.map(d=>d.foreignRate)):100;
   const foreignBars=data.map((d,i)=>{if(!(d.foreignShares>0))return '';const x=left+(i+.5)*step,h=d.foreignShares/maxForeignShares*(foreignBottom-foreignTop);return `<rect x="${x-cw/2}" y="${foreignBottom-h}" width="${cw}" height="${h}" fill="#8b9bb2" opacity=".65"/>`}).join('');
   const foreignPoints=data.map((d,i)=>d.foreignRate===null||d.foreignRate===undefined?null:[left+(i+.5)*step,foreignBottom-((d.foreignRate-minRate)/(Math.max(.0001,maxRate-minRate)))*(foreignBottom-foreignTop)]).filter(Boolean);
@@ -484,9 +484,12 @@ async function loadChartPeriod(period){
    try{
     const foreignRaw=await first([`https://api.stock.naver.com/chart/domestic/item/${code}?periodType=${period==='day'?'dayCandle':period==='week'?'weekCandle':period==='month'?'monthCandle':'monthCandle'}`]);
     const foreignList=objects(foreignRaw);
-    const rateMap=new Map(foreignList.map(x=>[String(x.localDate??x.localTradedAt??x.date??'').replace(/\D/g,'').slice(0,8),num(x.foreignRetentionRate??x.foreignerHoldRatio??x.foreignRate)]).filter(x=>x[0]&&x[1]!==null));
+    const dateKeys=['localDate','localTradedAt','tradeDate','date','bizdate','trdDt','yyyymmdd','basDt'];
+    const rateKeys=['foreignRetentionRate','foreignerHoldRatio','foreignRate','foreignOwnershipRate','foreignRatio','foreignHoldRatio','foreignerRetentionRate','frgnrHoldRatio','frgnHoldRatio'];
+    const rateMap=new Map();
+    for(const row of foreignList){const date=String(dateKeys.map(k=>row[k]).find(v=>v!==undefined&&v!==null)||'').replace(/\D/g,'').slice(0,8);let rate=null;for(const key of rateKeys){rate=num(row[key]);if(rate!==null)break}if(!rateKeys.some(k=>row[k]!==undefined)&&rate===null){for(const [key,value] of Object.entries(row)){if(/foreign.*(rate|ratio|hold)|frgn.*(rate|ratio|hold)/i.test(key)){rate=num(value);if(rate!==null)break}}}if(date&&rate!==null)rateMap.set(date,rate)}
     const basicRaw=await first([`${API}/api/stock/${code}/basic`]);
-    const listed=num(findText(basicRaw,['listedShares','listedShareCount','totalListedShares','sharesOutstanding','issuedShares']));
+    const listed=num(findText(basicRaw,['listedShares','listedShareCount','totalListedShares','sharesOutstanding','issuedShares','listingShareCount','totalShares']));
     for(const c of candles){const rate=rateMap.get(c.date);if(rate!==undefined){c.foreignRate=rate;if(listed>0)c.foreignShares=listed*rate/100}}
    }catch(e){console.warn('외국인 보유 데이터 조회 실패',e)}
 
