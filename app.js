@@ -1,6 +1,6 @@
 const API='https://m.stock.naver.com';
 const DESKTOP='https://stock.naver.com';
-const PROXY_BASE='https://tests.mcraft-tiger-574.workers.dev';
+const PROXY_BASE='https://stock-insight-proxy.mcraft-tiger-574.workers.dev';
 const seed=[{name:'삼성전자',code:'005930'},{name:'삼성전자우',code:'005935'},{name:'SK하이닉스',code:'000660'},{name:'한미반도체',code:'042700'},{name:'두산에너빌리티',code:'034020'},{name:'두산',code:'000150'},{name:'현대차',code:'005380'},{name:'기아',code:'000270'},{name:'LG에너지솔루션',code:'373220'},{name:'삼성SDI',code:'006400'},{name:'NAVER',code:'035420'},{name:'카카오',code:'035720'},{name:'제주반도체',code:'080220'},{name:'대원전선',code:'006340'},{name:'대덕전자',code:'353200'}];
 const $=id=>document.getElementById(id), blank='—';
 const FLOW_DATE_KEYS=['tradeDate','date','localDate','localTradedAt','bizdate','tradingDate','bizDate','trdDt','dt','basDt','yyyymmdd','tradeDateYmd','dateString','tradedAt','dealDate','stckBsopDate','ymd','businessDate','tradingDay','stck_bsop_date','bsopDate'];
@@ -452,7 +452,7 @@ function renderDailyChart(raw,period=dailyChartPeriod){
  const candleScale=isMobileChart?1.2:1.8;
  const candleExtra=Math.round((160-top)*(candleScale-1));
  const priceBottom=160+candleExtra,volumeTop=174+candleExtra,volumeBottom=218+candleExtra,foreignTop=235+candleExtra,foreignBottom=286+candleExtra;
- const H=foreignBottom+22,plotW=W-left-right,plotH=priceBottom-top;
+ const H=foreignBottom+(isMobileChart?7:22),plotW=W-left-right,plotH=priceBottom-top;
  let min=Math.min(...data.map(x=>x.low)),max=Math.max(...data.map(x=>x.high));if(min===max){min*=.99;max*=1.01}const pad=(max-min)*.06;min-=pad;max+=pad;
  const y=v=>top+(max-v)/(max-min)*plotH,step=plotW/data.length,cw=Math.max(2,Math.min(7,step*.58));
  const grid=[0,.25,.5,.75,1].map(t=>{const val=max-(max-min)*t,yy=top+plotH*t;return `<line class="daily-grid-line" x1="${left}" y1="${yy}" x2="${W-right}" y2="${yy}"/><text class="daily-axis-text" x="${W-right+5}" y="${yy+3}" text-anchor="start">${Math.round(val).toLocaleString('ko-KR')}</text>`}).join('');
@@ -474,8 +474,8 @@ function renderDailyChart(raw,period=dailyChartPeriod){
  // 매월 첫 거래일 위치에 연한 세로 구분선을 표시하고 날짜 표시는 차트 최하단으로 내린다.
  const monthStarts=[];let lastMonth='';for(let i=0;i<data.length;i++){const month=data[i].date.slice(0,6);if(month!==lastMonth){monthStarts.push({i,month});lastMonth=month}}
  const monthLines=monthStarts.map(({i})=>{const x=left+(i+.5)*step;return `<line class="daily-month-separator" x1="${x}" y1="${top}" x2="${x}" y2="${foreignBottom}"/>`}).join('');
- const monthLabels=monthStarts.map(({i,month})=>{const x=left+(i+.5)*step;return `<text class="daily-axis-text daily-month-label-desktop" x="${x}" y="${foreignBottom+7}" text-anchor="middle">${month.slice(4,6)}.01</text>`}).join('');
- const mobileMonthDates=monthStarts.map(({i,month})=>{const position=((i+.5)/data.length)*100;return `<span style="left:${position.toFixed(3)}%">${month.slice(4,6)}.01</span>`}).join('');
+ const monthLabels=monthStarts.map(({i,month})=>{const x=left+(i+.5)*step;return `<text class="daily-axis-text daily-month-label-desktop" x="${x}" y="${foreignBottom+7}" text-anchor="middle">${month.slice(4,6)}.</text>`}).join('');
+ const mobileMonthDates=monthStarts.map(({i,month})=>{const position=((i+.5)/data.length)*100;return `<span style="left:${position.toFixed(3)}%">${month.slice(4,6)}.</span>`}).join('');
  host.innerHTML=`<div class="daily-ma-legend">${maPeriods.map(p=>`<span style="color:${maColors[p]}"><i style="display:inline-block;width:13px;border-top:1px solid ${maColors[p]};vertical-align:middle;margin-right:3px"></i>${p}${period==='day'?'일':period==='week'?'주':period==='month'?'월':'년'}</span>`).join('')}<span class="daily-volume-legend">거래량</span><span style="color:#e0a33a">외국인 보유율 ━</span></div><svg class="daily-candle-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${({day:'일봉',week:'주봉',month:'월봉',year:'년봉'}[period]||'주가')} 캔들, 이동평균선 및 거래량 차트">${grid}${monthLines}<line class="daily-grid-line" x1="${left}" y1="${volumeTop}" x2="${W-right}" y2="${volumeTop}"/>${candles}${movingAverages}${volumes}<line class="daily-grid-line" x1="${left}" y1="${foreignTop-7}" x2="${W-right}" y2="${foreignTop-7}"/>${foreignGrid}${foreignLine}${monthLabels}</svg><div class="daily-month-date-row">${mobileMonthDates}</div>`;
  const range=$('dailyChartRange');if(range)range.textContent=`${data[0].date.slice(0,4)}.${data[0].date.slice(4,6)}.${data[0].date.slice(6,8)} – ${data[data.length-1].date.slice(0,4)}.${data[data.length-1].date.slice(4,6)}.${data[data.length-1].date.slice(6,8)}`;
 }
