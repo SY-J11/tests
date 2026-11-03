@@ -1,6 +1,6 @@
 const API='https://m.stock.naver.com';
 const DESKTOP='https://stock.naver.com';
-const PROXY_BASE='https://test.mcraft-tiger-574.workers.dev';
+const PROXY_BASE='https://stock-insight-proxy.mcraft-tiger-574.workers.dev';
 const seed=[{name:'삼성전자',code:'005930'},{name:'삼성전자우',code:'005935'},{name:'SK하이닉스',code:'000660'},{name:'한미반도체',code:'042700'},{name:'두산에너빌리티',code:'034020'},{name:'두산',code:'000150'},{name:'현대차',code:'005380'},{name:'기아',code:'000270'},{name:'LG에너지솔루션',code:'373220'},{name:'삼성SDI',code:'006400'},{name:'NAVER',code:'035420'},{name:'카카오',code:'035720'},{name:'제주반도체',code:'080220'},{name:'대원전선',code:'006340'},{name:'대덕전자',code:'353200'}];
 const $=id=>document.getElementById(id), blank='—';
 const FLOW_DATE_KEYS=['tradeDate','date','localDate','localTradedAt','bizdate','tradingDate','bizDate','trdDt','dt','basDt','yyyymmdd','tradeDateYmd','dateString','tradedAt','dealDate','stckBsopDate','ymd','businessDate','tradingDay','stck_bsop_date','bsopDate'];
@@ -412,7 +412,7 @@ function renderDailyChart(raw,period=dailyChartPeriod){
   const high=num(x.highPrice??x.high??x.stckHgpr??x.highestPrice)??Math.max(open,close);
   const low=num(x.lowPrice??x.low??x.stckLwpr??x.lowestPrice)??Math.min(open,close);
   const volume=num(x.accumulatedTradingVolume??x.tradingVolume??x.tradeVolume??x.volume??x.acmlVol??x.vol??x.accTradeVolume??x.accumulatedVolume)??0;
-  const foreignRate=num(x.foreignRetentionRate??x.foreignerHoldRatio??x.foreignRate??x.foreignOwnershipRate??x.foreignRatio??x.foreignHoldRatio??x.foreignerRetentionRate??x.frgnrHoldRatio??x.frgnHoldRatio); const foreignShares=num(x.foreignShares??x.foreignerHoldings??x.foreignHoldingShares??x.foreignerHoldingShares??x.foreignRetentionShares); return {date,open,high,low,close,volume,foreignRate,foreignShares};
+  const foreignRate=num(x.foreignRetentionRate??x.foreignerHoldRatio??x.foreignRate??x.foreignOwnershipRate??x.foreignRatio??x.foreignHoldRatio??x.foreignerRetentionRate??x.frgnrHoldRatio??x.frgnHoldRatio); return {date,open,high,low,close,volume,foreignRate};
  }).filter(x=>x.date&&x.close!==null&&x.open!==null&&x.high!==null&&x.low!==null);
  const byDate=new Map();for(const x of list)byDate.set(x.date,x);
  const data=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-200);
@@ -426,16 +426,18 @@ function renderDailyChart(raw,period=dailyChartPeriod){
  const movingAverages=maPeriods.map(period=>{if(data.length<period)return '';const points=[];let sum=0;for(let i=0;i<data.length;i++){sum+=data[i].close;if(i>=period)sum-=data[i-period].close;if(i>=period-1){const avg=sum/period;points.push(`${(left+(i+.5)*step).toFixed(2)},${y(avg).toFixed(2)}`)}}return `<polyline points="${points.join(' ')}" fill="none" stroke="${maColors[period]}" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>`}).join('');
  const candles=data.map((d,i)=>{const x=left+(i+.5)*step,up=d.close>=d.open,color=up?'#df5967':'#3979d8',bodyY=Math.min(y(d.open),y(d.close)),bodyH=Math.max(1,Math.abs(y(d.open)-y(d.close)));return `<line x1="${x}" y1="${y(d.high)}" x2="${x}" y2="${y(d.low)}" stroke="${color}" stroke-width="1"/><rect x="${x-cw/2}" y="${bodyY}" width="${cw}" height="${bodyH}" fill="${color}"/>`}).join('');
  const maxVolume=Math.max(1,...data.map(d=>d.volume||0));
-  const foreignRows=data.filter(d=>d.foreignRate!==null&&d.foreignRate!==undefined);
-  const maxForeignShares=Math.max(1,...data.map(d=>d.foreignShares||0));
+  const foreignRows=data.filter(d=>d.foreignRate!==null&&d.foreignRate!==undefined&&Number.isFinite(d.foreignRate));
   const minRate=foreignRows.length?Math.min(...foreignRows.map(d=>d.foreignRate)):0,maxRate=foreignRows.length?Math.max(...foreignRows.map(d=>d.foreignRate)):100;
-  const foreignBars=data.map((d,i)=>{if(!(d.foreignShares>0))return '';const x=left+(i+.5)*step,h=d.foreignShares/maxForeignShares*(foreignBottom-foreignTop);return `<rect x="${x-cw/2}" y="${foreignBottom-h}" width="${cw}" height="${h}" fill="#8b9bb2" opacity=".65"/>`}).join('');
-  const foreignPoints=data.map((d,i)=>d.foreignRate===null||d.foreignRate===undefined?null:[left+(i+.5)*step,foreignBottom-((d.foreignRate-minRate)/(Math.max(.0001,maxRate-minRate)))*(foreignBottom-foreignTop)]).filter(Boolean);
+  const rateSpan=Math.max(0.01,maxRate-minRate),ratePad=rateSpan*0.12;
+  const rateMin=Math.max(0,minRate-ratePad),rateMax=maxRate+ratePad;
+  const foreignY=v=>foreignBottom-((v-rateMin)/(rateMax-rateMin))*(foreignBottom-foreignTop);
+  const foreignGrid=Array.from({length:5},(_,i)=>{const value=rateMax-(rateMax-rateMin)*i/4,yy=foreignTop+(foreignBottom-foreignTop)*i/4;return `<line x1="${left}" y1="${yy}" x2="${W-right}" y2="${yy}" stroke="#929baa" stroke-width="1" stroke-dasharray="3 4" opacity=".8"/><text class="daily-axis-text" x="${W-right+5}" y="${yy+3}" text-anchor="start">${value.toFixed(2)}%</text>`}).join('');
+  const foreignPoints=data.map((d,i)=>d.foreignRate===null||d.foreignRate===undefined||!Number.isFinite(d.foreignRate)?null:[left+(i+.5)*step,foreignY(d.foreignRate)]).filter(Boolean);
   const foreignLine=foreignPoints.length>1?`<polyline points="${foreignPoints.map(p=>p.join(',')).join(' ')}" fill="none" stroke="#e0a33a" stroke-width="2"/>`:'';
 
  const volumes=data.map((d,i)=>{const x=left+(i+.5)*step,h=Math.max(d.volume>0?1:0,(d.volume||0)/maxVolume*(volumeBottom-volumeTop)),color=d.close>=d.open?'#df5967':'#3979d8';return h?`<rect x="${x-cw/2}" y="${volumeBottom-h}" width="${cw}" height="${h}" fill="${color}" opacity=".78"/>`:''}).join('');
  const labels=[0,Math.floor((data.length-1)/2),data.length-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>{const d=data[i],x=left+(i+.5)*step;return `<text class="daily-axis-text" x="${x}" y="225" text-anchor="middle">${d.date.slice(4,6)}.${d.date.slice(6,8)}</text>`}).join('');
- host.innerHTML=`<div class="daily-ma-legend">${maPeriods.map(p=>`<span style="color:${maColors[p]}"><i style="display:inline-block;width:13px;border-top:1px solid ${maColors[p]};vertical-align:middle;margin-right:3px"></i>${p}${period==='day'?'일':period==='week'?'주':period==='month'?'월':'년'}</span>`).join('')}<span class="daily-volume-legend">거래량</span><span style="color:#8b9bb2">외국인 보유 주식수 ■</span><span style="color:#e0a33a">외국인 보유율 ━</span></div><svg class="daily-candle-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${({day:'일봉',week:'주봉',month:'월봉',year:'년봉'}[period]||'주가')} 캔들, 이동평균선 및 거래량 차트">${grid}<line class="daily-grid-line" x1="${left}" y1="${volumeTop}" x2="${W-right}" y2="${volumeTop}"/>${candles}${movingAverages}${volumes}<line class="daily-grid-line" x1="${left}" y1="${foreignTop-7}" x2="${W-right}" y2="${foreignTop-7}"/>${foreignBars}${foreignLine}${labels}</svg>`;
+ host.innerHTML=`<div class="daily-ma-legend">${maPeriods.map(p=>`<span style="color:${maColors[p]}"><i style="display:inline-block;width:13px;border-top:1px solid ${maColors[p]};vertical-align:middle;margin-right:3px"></i>${p}${period==='day'?'일':period==='week'?'주':period==='month'?'월':'년'}</span>`).join('')}<span class="daily-volume-legend">거래량</span><span style="color:#e0a33a">외국인 보유율 ━</span></div><svg class="daily-candle-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${({day:'일봉',week:'주봉',month:'월봉',year:'년봉'}[period]||'주가')} 캔들, 이동평균선 및 거래량 차트">${grid}<line class="daily-grid-line" x1="${left}" y1="${volumeTop}" x2="${W-right}" y2="${volumeTop}"/>${candles}${movingAverages}${volumes}<line class="daily-grid-line" x1="${left}" y1="${foreignTop-7}" x2="${W-right}" y2="${foreignTop-7}"/>${foreignGrid}${foreignLine}${labels}</svg>`;
  const range=$('dailyChartRange');if(range)range.textContent=`${data[0].date.slice(0,4)}.${data[0].date.slice(4,6)}.${data[0].date.slice(6,8)} – ${data[data.length-1].date.slice(0,4)}.${data[data.length-1].date.slice(4,6)}.${data[data.length-1].date.slice(6,8)}`;
 }
 function streakDisplayHtml(value,highlight){const text=String(value??'—');return highlight&&/^\d/.test(text)?`<strong>${text[0]}</strong>${text.slice(1)}`:text}
@@ -497,8 +499,7 @@ async function loadChartPeriod(period){
     const rateKeys=['foreignRetentionRate','foreignerHoldRatio','foreignRate','foreignOwnershipRate','foreignRatio','foreignHoldRatio','foreignerRetentionRate','frgnrHoldRatio','frgnHoldRatio'];
     const rateMap=new Map();
     for(const row of foreignList){const date=String(dateKeys.map(k=>row[k]).find(v=>v!==undefined&&v!==null)||'').replace(/\D/g,'').slice(0,8);let rate=null;for(const key of rateKeys){rate=num(row[key]);if(rate!==null)break}if(!rateKeys.some(k=>row[k]!==undefined)&&rate===null){for(const [key,value] of Object.entries(row)){if(/foreign.*(rate|ratio|hold)|frgn.*(rate|ratio|hold)/i.test(key)){rate=num(value);if(rate!==null)break}}}if(date&&rate!==null)rateMap.set(date,rate)}
-    const listed=await loadListedSharesFromCompany(code);
-    for(const c of candles){const rate=rateMap.get(c.date);if(rate!==undefined){c.foreignRate=rate;if(listed>0)c.foreignShares=Math.round(listed*rate/100)}}
+    for(const c of candles){const rate=rateMap.get(c.date);if(rate!==undefined)c.foreignRate=rate}
    }catch(e){console.warn('외국인 보유 데이터 조회 실패',e)}
 
   if(!candles.length)throw Error('가격 데이터 없음');dailyChartCache.set(code+'-'+period,candles);if(request===dailyChartRequest&&code===current.code)renderDailyChart(candles,period);
