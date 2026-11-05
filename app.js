@@ -1,4 +1,4 @@
-const API_BASE = ""; // 별도 도메인 Worker를 쓰면 예: https://your-worker.workers.dev
+const API_BASE = "https://m.mcraft-tiger-574.workers.dev"; // 별도 도메인 Worker를 쓰면 예: https://your-worker.workers.dev
 const CATEGORY_NAMES={all:"전체 뉴스",global:"미국·글로벌 증시",macro:"금리·환율·경제",geopolitics:"지정학·원자재",korea:"국내 증시·정책",industry:"산업·기업"};
 const state={category:"all",status:"active",news:[],issues:[],archive:[],offset:0,limit:12};
 const $=id=>document.getElementById(id);
